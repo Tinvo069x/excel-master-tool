@@ -2,32 +2,104 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Excel Split Tool - Remove Formula & Keep Format</title>
+<title>Excel Master (Tins)</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
 <style>
-body { font-family: Arial; padding: 20px; background:#f5f5f5; }
+body {
+    font-family: Arial;
+    padding:20px;
+    background:#f5f5f5;
+}
+
 .container {
-    background:white; padding:20px; border-radius:10px;
-    max-width:900px; margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    max-width:900px;
+    margin:auto;
     box-shadow:0 0 10px rgba(0,0,0,0.2);
 }
-select,input,button { padding:8px; margin:10px 0; width:100%; }
-button { background:#1976d2; color:white; border:none; cursor:pointer; }
-button:hover { background:#125ea8; }
-.progress-bar { width:100%; background:#ddd; height:20px; border-radius:10px; overflow:hidden; }
-.progress { height:100%; width:0%; background:#4caf50; }
-.status { margin-top:15px; font-weight:bold; }
+
+.tab-buttons{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+}
+
+.tab-buttons button{
+    flex:1;
+    padding:10px;
+    border:none;
+    background:#ccc;
+    cursor:pointer;
+}
+
+.tab-buttons button.active{
+    background:#1976d2;
+    color:white;
+}
+
+input, select {
+    padding:8px;
+    margin:10px 0;
+    width:100%;
+}
+
+button.action{
+    background:#1976d2;
+    color:white;
+    border:none;
+    padding:10px;
+    cursor:pointer;
+}
+
+button.action:hover{
+    background:#125ea8;
+}
+
+.progress-bar {
+    width:100%;
+    background:#ddd;
+    height:20px;
+    border-radius:10px;
+    overflow:hidden;
+}
+
+.progress {
+    height:100%;
+    width:0%;
+    background:#4caf50;
+}
+
+.status {
+    margin-top:15px;
+    font-weight:bold;
+}
+
+.hidden{
+    display:none;
+}
 </style>
 </head>
 
 <body>
 
 <div class="container">
-<h2>Excel Split Tools(Tins) </h2>
+
+<h2>Excel Master (Tins)</h2>
+
+<div class="tab-buttons">
+    <button id="tabSplit" class="active" onclick="showTab('split')">Split Tool</button>
+    <button id="tabMerge" onclick="showTab('merge')">Merge Tool</button>
+</div>
+
+<!-- ================= SPLIT TOOL ================= -->
+
+<div id="splitPage">
 
 <input type="file" id="fileInput" accept=".xlsx,.xlsb">
 
@@ -40,42 +112,85 @@ button:hover { background:#125ea8; }
 <label>Separator:</label>
 <input type="text" id="separator" value="-" />
 
-<button onclick="splitFile()">Split & Download ZIP</button>
+<button class="action" onclick="splitFile()">Split & Download ZIP</button>
 
 <div class="progress-bar">
 <div class="progress" id="progressBar"></div>
 </div>
 
-<div class="status" id="status"></div>
+<div class="status" id="statusSplit"></div>
+
+</div>
+
+<!-- ================= MERGE TOOL ================= -->
+
+<div id="mergePage" class="hidden">
+
+<input type="file" id="mergeInput" multiple accept=".xlsx,.xlsb">
+
+<label>
+<input type="checkbox" id="addSource" checked>
+Add Source File Column
+</label>
+
+<br><br>
+
+<button class="action" onclick="mergeFiles()">Merge to Master</button>
+
+<div class="status" id="statusMerge"></div>
+
+</div>
+
 </div>
 
 <script>
 
+/* ================= TAB SWITCH ================= */
+
+function showTab(tab){
+
+    document.getElementById("splitPage").classList.add("hidden");
+    document.getElementById("mergePage").classList.add("hidden");
+
+    document.getElementById("tabSplit").classList.remove("active");
+    document.getElementById("tabMerge").classList.remove("active");
+
+    if(tab==="split"){
+        document.getElementById("splitPage").classList.remove("hidden");
+        document.getElementById("tabSplit").classList.add("active");
+    }else{
+        document.getElementById("mergePage").classList.remove("hidden");
+        document.getElementById("tabMerge").classList.add("active");
+    }
+}
+
+/* ================= SPLIT CODE ================= */
+
 let workbook;
 
-document.getElementById("fileInput").addEventListener("change", function(e) {
+document.getElementById("fileInput").addEventListener("change", function(e){
 
     const file = e.target.files[0];
     const reader = new FileReader();
 
-    reader.onload = function(event) {
+    reader.onload = function(event){
 
         const data = new Uint8Array(event.target.result);
 
         workbook = XLSX.read(data, {
-            type: 'array',
-            cellStyles: true,
-            cellNF: true,
-            cellDates: true
+            type:'array',
+            cellStyles:true,
+            cellNF:true,
+            cellDates:true
         });
 
         const sheetSelect = document.getElementById("sheetSelect");
-        sheetSelect.innerHTML = "";
+        sheetSelect.innerHTML="";
 
-        workbook.SheetNames.forEach(name => {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.text = name;
+        workbook.SheetNames.forEach(name=>{
+            const opt=document.createElement("option");
+            opt.value=name;
+            opt.text=name;
             sheetSelect.appendChild(opt);
         });
 
@@ -89,27 +204,25 @@ document.getElementById("sheetSelect").addEventListener("change", loadSheet);
 
 function loadSheet(){
 
-    const sheetName = document.getElementById("sheetSelect").value;
-    const ws = workbook.Sheets[sheetName];
+    const sheetName=document.getElementById("sheetSelect").value;
+    const ws=workbook.Sheets[sheetName];
 
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    const headerRow = range.s.r;
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    const headerRow=range.s.r;
 
-    const columnSelect = document.getElementById("columnSelect");
-    columnSelect.innerHTML = "";
+    const columnSelect=document.getElementById("columnSelect");
+    columnSelect.innerHTML="";
 
-    for(let C = range.s.c; C <= range.e.c; C++){
-        const addr = XLSX.utils.encode_cell({r:headerRow,c:C});
-        const cell = ws[addr];
-        const text = cell ? cell.v : ("Column " + C);
+    for(let C=range.s.c; C<=range.e.c; C++){
+        const addr=XLSX.utils.encode_cell({r:headerRow,c:C});
+        const cell=ws[addr];
+        const text=cell?cell.v:"Column "+C;
 
-        const opt = document.createElement("option");
-        opt.value = C;
-        opt.text = text;
+        const opt=document.createElement("option");
+        opt.value=C;
+        opt.text=text;
         columnSelect.appendChild(opt);
     }
-
-    document.getElementById("status").innerText = "Sheet loaded.";
 }
 
 function sanitize(name){
@@ -120,23 +233,22 @@ function sanitize(name){
 
 async function splitFile(){
 
-    const selected = Array.from(document.getElementById("columnSelect").selectedOptions);
+    const selected=Array.from(document.getElementById("columnSelect").selectedOptions);
     if(selected.length===0){
         alert("Select at least one column");
         return;
     }
 
-    const cols = selected.map(o=>parseInt(o.value));
-    const sep = document.getElementById("separator").value || "-";
-    const sheetName = document.getElementById("sheetSelect").value;
-    const ws = workbook.Sheets[sheetName];
+    const cols=selected.map(o=>parseInt(o.value));
+    const sep=document.getElementById("separator").value||"-";
+    const sheetName=document.getElementById("sheetSelect").value;
+    const ws=workbook.Sheets[sheetName];
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    const headerRow=range.s.r;
 
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    const headerRow = range.s.r;
-
-    const groups = {};
-    const progress = document.getElementById("progressBar");
-    const status = document.getElementById("status");
+    const groups={};
+    const progress=document.getElementById("progressBar");
+    const status=document.getElementById("statusSplit");
 
     progress.style.width="0%";
     status.innerText="Grouping rows...";
@@ -145,39 +257,28 @@ async function splitFile(){
 
         let keyParts=[];
         cols.forEach(c=>{
-            const addr = XLSX.utils.encode_cell({r:R,c:c});
-            const cell = ws[addr];
-            keyParts.push(cell ? cell.v : "EMPTY");
+            const addr=XLSX.utils.encode_cell({r:R,c:c});
+            const cell=ws[addr];
+            keyParts.push(cell?cell.v:"EMPTY");
         });
 
-        const key = keyParts.join(sep);
+        const key=keyParts.join(sep);
         if(!groups[key]) groups[key]=[];
         groups[key].push(R);
     }
 
-    const zip = new JSZip();
+    const zip=new JSZip();
     let count=0;
 
     for(const key in groups){
 
-        const newSheet = {};
+        const newSheet={};
 
-        // Copy column width
-        if(ws['!cols']){
-            newSheet['!cols'] = JSON.parse(JSON.stringify(ws['!cols']));
-        }
-
-        // Copy merges
-        if(ws['!merges']){
-            newSheet['!merges'] = JSON.parse(JSON.stringify(ws['!merges']));
-        }
-
-        // Copy header
         for(let C=range.s.c; C<=range.e.c; C++){
-            const addr = XLSX.utils.encode_cell({r:headerRow,c:C});
+            const addr=XLSX.utils.encode_cell({r:headerRow,c:C});
             if(ws[addr]){
-                const newCell = {...ws[addr]};
-                delete newCell.f; // remove formula
+                const newCell={...ws[addr]};
+                delete newCell.f;
                 newSheet[addr]=newCell;
             }
         }
@@ -185,21 +286,15 @@ async function splitFile(){
         let newRow=headerRow+1;
 
         groups[key].forEach(oldRow=>{
-
             for(let C=range.s.c; C<=range.e.c; C++){
-
-                const oldAddr = XLSX.utils.encode_cell({r:oldRow,c:C});
-                const newAddr = XLSX.utils.encode_cell({r:newRow,c:C});
-                const oldCell = ws[oldAddr];
+                const oldAddr=XLSX.utils.encode_cell({r:oldRow,c:C});
+                const newAddr=XLSX.utils.encode_cell({r:newRow,c:C});
+                const oldCell=ws[oldAddr];
                 if(!oldCell) continue;
-
                 const newCell={...oldCell};
-
-                delete newCell.f; // 🔥 remove formula completely
-
+                delete newCell.f;
                 newSheet[newAddr]=newCell;
             }
-
             newRow++;
         });
 
@@ -208,15 +303,10 @@ async function splitFile(){
             e:{r:newRow-1,c:range.e.c}
         });
 
-        const newWB = XLSX.utils.book_new();
+        const newWB=XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(newWB,newSheet,"Data");
 
-        const wbout = XLSX.write(newWB,{
-            bookType:'xlsx',
-            type:'array',
-            cellStyles:true
-        });
-
+        const wbout=XLSX.write(newWB,{bookType:'xlsx',type:'array'});
         zip.file(sanitize(key)+".xlsx",wbout);
 
         count++;
@@ -224,11 +314,69 @@ async function splitFile(){
         await new Promise(r=>setTimeout(r,1));
     }
 
-    status.innerText="Creating ZIP...";
-    const blob = await zip.generateAsync({type:"blob"});
-    saveAs(blob,"Split_Files_No_Formula_Keep_Format.zip");
+    const blob=await zip.generateAsync({type:"blob"});
+    saveAs(blob,"Split_Files.zip");
 
     status.innerText="Done. Created "+count+" files.";
+}
+
+/* ================= MERGE CODE ================= */
+
+async function mergeFiles(){
+
+    const files=document.getElementById("mergeInput").files;
+    const addSource=document.getElementById("addSource").checked;
+
+    if(files.length===0){
+        alert("Select files.");
+        return;
+    }
+
+    const status=document.getElementById("statusMerge");
+    status.innerText="Processing...";
+
+    let masterData=[];
+    let headerSaved=false;
+
+    for(let i=0;i<files.length;i++){
+
+        const data=await files[i].arrayBuffer();
+        const workbook=XLSX.read(data,{type:'array',cellDates:true});
+
+        const sheetName=workbook.SheetNames[0];
+        const worksheet=workbook.Sheets[sheetName];
+
+        const jsonData=XLSX.utils.sheet_to_json(worksheet,{
+            header:1,
+            defval:""
+        });
+
+        if(jsonData.length===0) continue;
+
+        if(!headerSaved){
+            let headerRow=jsonData[0];
+            if(addSource) headerRow=["Source_File",...headerRow];
+            masterData.push(headerRow);
+            headerSaved=true;
+        }
+
+        for(let r=1;r<jsonData.length;r++){
+            let row=jsonData[r];
+            if(addSource) row=[files[i].name,...row];
+            masterData.push(row);
+        }
+    }
+
+    const newWorkbook=XLSX.utils.book_new();
+    const newSheet=XLSX.utils.aoa_to_sheet(masterData);
+    XLSX.utils.book_append_sheet(newWorkbook,newSheet,"MasterData");
+
+    const wbout=XLSX.write(newWorkbook,{bookType:'xlsx',type:'array'});
+
+    saveAs(new Blob([wbout],{type:"application/octet-stream"}),
+           "Master_Merged_Output.xlsx");
+
+    status.innerText="Done. Merged "+files.length+" files.";
 }
 
 </script>
